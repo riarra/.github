@@ -4,9 +4,9 @@ on:
   workflow_call:
     secrets:
       NOTIFY_BOT_TOKEN:
-        required: true
+        required: false
       NOTIFY_CHAT_ID:
-        required: true
+        required: false
 
 jobs:
   notify:
