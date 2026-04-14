@@ -1,0 +1,92 @@
+name: Notify Telegram on Issue (reusable)
+
+on:
+  workflow_call:
+    secrets:
+      NOTIFY_BOT_TOKEN:
+        required: true
+      NOTIFY_CHAT_ID:
+        required: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram notification
+        env:
+          BOT_TOKEN: ${{ secrets.NOTIFY_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.NOTIFY_CHAT_ID }}
+          REPO: ${{ github.repository }}
+          ACTION: ${{ github.event.action }}
+          NUM: ${{ github.event.issue.number }}
+          TITLE: ${{ github.event.issue.title }}
+          URL: ${{ github.event.issue.html_url }}
+          SENDER: ${{ github.event.sender.login }}
+          ASSIGNEE: ${{ github.event.assignee.login }}
+          LABEL: ${{ github.event.label.name }}
+        run: |
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "No secrets — skipping"
+            exit 0
+          fi
+
+          esc() {
+            printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+          }
+
+          name_of() {
+            case "$1" in
+              rilhoms) echo "Ильхом" ;;
+              Vadim-DV555) echo "Вадим" ;;
+              RuslanRiarra) echo "Руслан" ;;
+              *) echo "$1" ;;
+            esac
+          }
+
+          NAME=$(name_of "$SENDER")
+          SAFE_TITLE=$(esc "$TITLE")
+
+          case "$ACTION" in
+            opened)
+              EMOJI="📋"
+              TEXT_HEAD="Новый Issue"
+              DETAIL="Создал: ${NAME}"
+              ;;
+            closed)
+              EMOJI="✅"
+              TEXT_HEAD="Issue закрыт"
+              DETAIL="Закрыл: ${NAME}"
+              ;;
+            reopened)
+              EMOJI="🔄"
+              TEXT_HEAD="Issue переоткрыт"
+              DETAIL="Переоткрыл: ${NAME}"
+              ;;
+            assigned)
+              ANAME=$(name_of "$ASSIGNEE")
+              EMOJI="👤"
+              TEXT_HEAD="Issue назначен"
+              DETAIL="Назначен на: ${ANAME}"
+              ;;
+            labeled)
+              SAFE_LABEL=$(esc "$LABEL")
+              EMOJI="🏷"
+              TEXT_HEAD="Метка добавлена"
+              DETAIL="Метка: ${SAFE_LABEL}"
+              ;;
+            *) exit 0 ;;
+          esac
+
+          MSG="${EMOJI} <b>${TEXT_HEAD}</b>
+
+#${NUM} ${SAFE_TITLE}
+${DETAIL}
+📦 ${REPO}
+
+<a href=\"${URL}\">открыть</a>"
+
+          curl -sS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHAT_ID}" \
+            -d parse_mode="HTML" \
+            -d disable_web_page_preview="true" \
+            --data-urlencode "text=${MSG}"

@@ -1,0 +1,73 @@
+name: Notify Telegram on Push (reusable)
+
+# Reusable workflow. Не запускается сам по себе.
+# Использование из caller'ов:
+#   jobs:
+#     notify:
+#       uses: riarra/.github/.github/workflows/_notify-push.yml@main
+#       secrets: inherit
+#
+# Security: все user-controlled входы (commit message, author) проходят
+# через env-vars, не через shell interpolation. HTML-эскейп обязателен.
+
+on:
+  workflow_call:
+    secrets:
+      NOTIFY_BOT_TOKEN:
+        required: true
+      NOTIFY_CHAT_ID:
+        required: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram notification
+        env:
+          BOT_TOKEN: ${{ secrets.NOTIFY_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.NOTIFY_CHAT_ID }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          COMMIT_URL: ${{ github.event.head_commit.url }}
+          SENDER: ${{ github.event.head_commit.author.username }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          EVENT_JSON: ${{ toJSON(github.event) }}
+        run: |
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "No NOTIFY_BOT_TOKEN / NOTIFY_CHAT_ID — skipping"
+            exit 0
+          fi
+
+          SHA_SHORT=$(echo "$SHA" | cut -c1-7)
+
+          case "$SENDER" in
+            rilhoms) NAME="Ильхом" ;;
+            Vadim-DV555) NAME="Вадим" ;;
+            RuslanRiarra) NAME="Руслан" ;;
+            *) NAME="$SENDER" ;;
+          esac
+
+          SUBJECT=$(printf '%s' "$COMMIT_MSG" \
+            | head -1 \
+            | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+
+          NUM_COMMITS=$(printf '%s' "$EVENT_JSON" | jq '.commits | length')
+
+          if [ "$NUM_COMMITS" -gt 1 ]; then
+            HEADER="📦 <b>${NUM_COMMITS} коммитов в ${REPO}</b>"
+          else
+            HEADER="📦 <b>Новый коммит в ${REPO}</b>"
+          fi
+
+          TEXT="${HEADER}
+<i>${NAME}</i>
+
+<code>${SHA_SHORT}</code> ${SUBJECT}
+
+<a href=\"${COMMIT_URL}\">открыть на GitHub</a>"
+
+          curl -sS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHAT_ID}" \
+            -d parse_mode="HTML" \
+            -d disable_web_page_preview="true" \
+            --data-urlencode "text=${TEXT}"
