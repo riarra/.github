@@ -31,10 +31,7 @@ jobs:
             exit 0
           fi
 
-          esc() {
-            printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
-          }
-
+          esc() { echo "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
           name_of() {
             case "$1" in
               rilhoms) echo "Ильхом" ;;
@@ -50,43 +47,20 @@ jobs:
           SAFE_HEAD=$(esc "$HEAD_REF")
 
           case "$ACTION" in
-            opened)
-              EMOJI="🔀"
-              TEXT_HEAD="Новый PR"
-              DETAIL="Открыл: ${NAME}"
-              ;;
+            opened) EMOJI="🔀" ; HEAD="Новый PR" ; DETAIL="Открыл: ${NAME}" ;;
             closed)
               if [ "$MERGED" = "true" ]; then
-                EMOJI="🎉"
-                TEXT_HEAD="PR смёржен"
-                DETAIL="Смёржил: ${NAME}"
+                EMOJI="🎉" ; HEAD="PR смёржен" ; DETAIL="Смёржил: ${NAME}"
               else
-                EMOJI="❌"
-                TEXT_HEAD="PR закрыт без мержа"
-                DETAIL="Закрыл: ${NAME}"
-              fi
-              ;;
-            reopened)
-              EMOJI="🔄"
-              TEXT_HEAD="PR переоткрыт"
-              DETAIL="Переоткрыл: ${NAME}"
-              ;;
-            ready_for_review)
-              EMOJI="👀"
-              TEXT_HEAD="PR готов к ревью"
-              DETAIL="Готов: ${NAME}"
-              ;;
+                EMOJI="❌" ; HEAD="PR закрыт без мержа" ; DETAIL="Закрыл: ${NAME}"
+              fi ;;
+            reopened) EMOJI="🔄" ; HEAD="PR переоткрыт" ; DETAIL="Переоткрыл: ${NAME}" ;;
+            ready_for_review) EMOJI="👀" ; HEAD="PR готов к ревью" ; DETAIL="Готов: ${NAME}" ;;
             *) exit 0 ;;
           esac
 
-          MSG="${EMOJI} <b>${TEXT_HEAD}</b>
-
-#${NUM} ${SAFE_TITLE}
-<code>${SAFE_HEAD}</code> → <code>${SAFE_BASE}</code>
-${DETAIL}
-📦 ${REPO}
-
-<a href=\"${URL}\">открыть</a>"
+          MSG=$(printf "%s <b>%s</b>\n\n#%s %s\n<code>%s</code> → <code>%s</code>\n%s\n📦 %s\n\n<a href=\"%s\">открыть</a>" \
+            "$EMOJI" "$HEAD" "$NUM" "$SAFE_TITLE" "$SAFE_HEAD" "$SAFE_BASE" "$DETAIL" "$REPO" "$URL")
 
           curl -sS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d chat_id="${CHAT_ID}" \
